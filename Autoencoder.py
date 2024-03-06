@@ -11,7 +11,7 @@ from collections import OrderedDict
 
 # Encoder as a fully connected network
 class Encoder(nn.Module):
-    def __init__(self, im_size, n_latent, n_hidden, NN_width):
+    def __init__(self, im_size, n_latent, n_hidden, NN_width, taper = False):
         super(Encoder, self).__init__()
 
         #create input layer
@@ -19,15 +19,26 @@ class Encoder(nn.Module):
         self.a1 = nn.LeakyReLU(0.2, inplace=True)
 
         #create hidden layers
-        layers = []
-        for i in range(n_hidden):
-            layers.append(('hidden{}'.format(i+1),nn.Linear(NN_width, NN_width)))
-            #layers.append(('batch norm{}'.format(i+1),nn.BatchNorm1d(NN_width)))
-            layers.append(('ReLU{}'.format(i+1), nn.LeakyReLU(0.2, inplace=True)))
+        if not taper:
+            layers = []
+            for i in range(n_hidden):
+                layers.append(('hidden{}'.format(i+1),nn.Linear(NN_width, NN_width)))
+                #layers.append(('batch norm{}'.format(i+1),nn.BatchNorm1d(NN_width)))
+                layers.append(('ReLU{}'.format(i+1), nn.LeakyReLU(0.2, inplace=True)))
+        else:
+            taper_amount = 2 # divide layer size by 2 each time
+            NN_widths = [min(n_latent*(taper_amount**i), NN_width) for i in range(n_hidden)]
+            NN_widths = NN_widths[::-1] #reverse for simplicity 
+            layers = []
+            for i in range(n_hidden-1):
+                layers.append(('hidden{}'.format(i+1),nn.Linear(NN_widths[i], NN_widths[i+1])))
+                #layers.append(('batch norm{}'.format(i+1),nn.BatchNorm1d(NN_width)))
+                layers.append(('ReLU{}'.format(i+1), nn.LeakyReLU(0.2, inplace=True)))
+
         self.hidden = nn.Sequential(OrderedDict(layers))
 
         #output layer
-        self.out = nn.Linear(NN_width,n_latent)
+        self.out = nn.Linear(NN_widths[-1],n_latent)
 
     #forward pass
     def forward(self, x):
@@ -39,25 +50,40 @@ class Encoder(nn.Module):
 
 # Decoder as a fully connected network
 class Decoder(nn.Module):
-    def __init__(self, im_size, n_latent, n_hidden, NN_width):
+    def __init__(self, im_size, n_latent, n_hidden, NN_width, taper = False):
         super(Decoder, self).__init__()
 
         self.im_size = im_size
 
-        #create input layer
-        self.l1 = nn.Linear(n_latent, NN_width)
-        self.a1 = nn.LeakyReLU(0.2, inplace=True)
-
         #create hidden layers
-        layers = []
-        for i in range(n_hidden):
-            layers.append(('hidden{}'.format(i+1),nn.Linear(NN_width, NN_width)))
-            #layers.append(('batch norm{}'.format(i+1),nn.BatchNorm1d(NN_width)))
-            layers.append(('ReLU{}'.format(i+1), nn.LeakyReLU(0.2, inplace=True)))
+        if not taper:
+            #create input layer
+            self.l1 = nn.Linear(n_latent, NN_width)
+            self.a1 = nn.LeakyReLU(0.2, inplace=True)
+
+            layers = []
+            for i in range(n_hidden):
+                layers.append(('hidden{}'.format(i+1),nn.Linear(NN_width, NN_width)))
+                #layers.append(('batch norm{}'.format(i+1),nn.BatchNorm1d(NN_width)))
+                layers.append(('ReLU{}'.format(i+1), nn.LeakyReLU(0.2, inplace=True)))
+        else:
+            taper_amount = 2
+            NN_widths = [min(n_latent*(taper_amount**i), NN_width) for i in range(n_hidden)]
+
+            #create input layer
+            self.l1 = nn.Linear(n_latent, NN_widths[0])
+            self.a1 = nn.LeakyReLU(0.2, inplace=True)
+
+            layers = []
+            for i in range(n_hidden-1):
+                layers.append(('hidden{}'.format(i+1),nn.Linear(NN_widths[i], NN_widths[i+1])))
+                #layers.append(('batch norm{}'.format(i+1),nn.BatchNorm1d(NN_width)))
+                layers.append(('ReLU{}'.format(i+1), nn.LeakyReLU(0.2, inplace=True)))
+
         self.hidden = nn.Sequential(OrderedDict(layers))
 
         #output layer
-        self.out = nn.Linear(NN_width,im_size**2)
+        self.out = nn.Linear(NN_widths[-1],im_size**2)
 
     #forward pass
     def forward(self, x):
@@ -70,10 +96,10 @@ class Decoder(nn.Module):
 
 ### Trainable Autoencoder class ###
 class AutoEncoder(nn.Module):
-    def __init__(self, im_size, n_latent, n_hidden, NN_width):
+    def __init__(self, im_size, n_latent, n_hidden, NN_width, taper = False):
         super(AutoEncoder, self).__init__()
-        self.encoder = Encoder(im_size, n_latent, n_hidden, NN_width)
-        self.decoder = Decoder(im_size, n_latent, n_hidden, NN_width)
+        self.encoder = Encoder(im_size, n_latent, n_hidden, NN_width, taper = taper)
+        self.decoder = Decoder(im_size, n_latent, n_hidden, NN_width, taper = taper)
 
     def forward(self, x):
         latent = self.encoder(x)
