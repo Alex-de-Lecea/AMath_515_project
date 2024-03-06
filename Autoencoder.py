@@ -13,13 +13,12 @@ from collections import OrderedDict
 class Encoder(nn.Module):
     def __init__(self, im_size, n_latent, n_hidden, NN_width, taper = False):
         super(Encoder, self).__init__()
-
-        #create input layer
-        self.l1 = nn.Linear(im_size, NN_width)
-        self.a1 = nn.LeakyReLU(0.2, inplace=True)
-
-        #create hidden layers
         if not taper:
+            #create input layer
+            self.l1 = nn.Linear(im_size, NN_width)
+            self.a1 = nn.LeakyReLU(0.2, inplace=True)
+
+            #hidden layers
             layers = []
             for i in range(n_hidden):
                 layers.append(('hidden{}'.format(i+1),nn.Linear(NN_width, NN_width)))
@@ -33,7 +32,12 @@ class Encoder(nn.Module):
         else:
             taper_amount = 2 # divide layer size by 2 each time
             NN_widths = [min(n_latent*(taper_amount**i), NN_width) for i in range(n_hidden)]
-            NN_widths = NN_widths[::-1] #reverse for simplicity 
+            NN_widths = NN_widths[::-1] #reverse for simplicity
+
+            #create input layer
+            self.l1 = nn.Linear(im_size, NN_widths[0])
+            self.a1 = nn.LeakyReLU(0.2, inplace=True) 
+
             layers = []
             for i in range(n_hidden-1):
                 layers.append(('hidden{}'.format(i+1),nn.Linear(NN_widths[i], NN_widths[i+1])))
