@@ -12,14 +12,12 @@ class ProxGD(Optimizer):
         params (iterable): iterable of parameters to optimize or dicts defining
             parameter groups
         lr (float): learning rate (required)
+        prox_g (function): the proximal gradient function for the non-smooth function g
     """
 
-    def __init__(self, params, lr=0.01):
-        defaults = dict(lr=lr)
+    def __init__(self, params, lr=0.01, prox_g = None):
+        defaults = dict(lr=lr, prox_g = prox_g)
         super(ProxGD, self).__init__(params, defaults)
-
-    def __setstate__(self, state):
-        super(ProxGD, self).__setstate__(state)
 
     def step(self, closure=None):
         """ Performs a single optimization step.
@@ -33,7 +31,12 @@ class ProxGD(Optimizer):
 
         for group in self.param_groups:
             lr = group['lr']
-            #for p in group['params']:
-                #p.data.add_(prox_g((lr * g), lr))
+            prox_g = group['prox_g']
+            for p in group['params']:
+                if p.grad is None:
+                    continue
+                grad = p.grad.data
+                step = p.data - lr * grad
+                p.data = prox_g(step, lr)
 
         return loss
