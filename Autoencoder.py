@@ -124,3 +124,124 @@ class AutoEncoder(nn.Module):
         latent = self.encoder(x)
         x = self.decoder(latent)
         return x, latent
+
+def validate_cyl(net, test_loader):
+    # use GPU if available
+    device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
+
+    #evaluate on test set with average absolute error across all test set
+    test_loss = 0
+    with torch.no_grad():
+        for batch in test_loader:
+            images = batch[0].to(device)
+            images = images.flatten(start_dim=1)
+            reconst, _ = net(images)
+            test_loss += torch.mean(torch.abs((reconst-images))).item()
+    return test_loss/len(test_loader)
+
+def train_cyl(net, opt, train_loader, test_loader, epochs = 100, error = nn.L1Loss(), iters_cycle = 100):
+    # use GPU if available
+    device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
+
+    # Reproducibility  
+    torch.manual_seed(0);
+
+    #save losses
+    losses = []
+
+    #train
+    iters = 0
+    for epoch in range(epochs):
+        #iterate through dataloader
+        for batch in train_loader:
+            #separate batch into labels and images
+            images = batch[0].to(device)
+            
+            #make predictions
+            reconst, latent = net(images)
+            
+            #calculate loss
+            loss = error(reconst, images.flatten(start_dim=1))
+            
+            #backpropagate gradients with Adam algorithm, this is the magic of pytorch and autograd
+            loss.backward()
+            opt.step()
+            
+            #reset gradients
+            net.zero_grad()
+            
+            #save losses
+            losses.append(loss.item())
+            
+            #log progress
+            if iters%iters_cycle==0:    
+                print('Epoch: {}/{}     Iter: {}     Loss: {}'.format(epoch, epochs, iters, loss.item()))
+            iters +=1
+
+    #evaluate on test set with MAE
+    test_loss = 0
+    with torch.no_grad():
+        for batch in test_loader:
+            images = batch[0].to(device)
+            reconst, latent = net(images)
+            test_loss += error(reconst, images.flatten(start_dim=1)).item()
+            
+    out = {}
+    out['optimizer'] = type (opt).__name__
+    out['losses'] = losses
+    out['net'] = net
+    out['test_error'] = validate_cyl(net, test_loader)
+
+    return out
+
+def plot_cyl_reconst(out_fname, net, dataloader_test, Nx, Ny, grid_x, grid_y):
+    ### Plot Results ###
+    device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
+
+    ## plot reconstruction
+    sample = next(iter(dataloader_test))  #grab the next batch from the dataloader
+    reconst, latent = net(sample[0].to(device))#[0].detach().cpu()
+    reconst = reconst.view(-1, Ny, Nx).detach().cpu()
+
+    fig, axs = plt.subplots(3,1, figsize=(8, 11))
+
+    # Plot sample
+    sample_plot = axs[0].pcolormesh(grid_x, grid_y, sample[0][0], cmap='RdBu', shading='auto', vmax=2, vmin=-2)
+    circle = plt.Circle((0, 0), 0.5, color='grey')
+    axs[0].add_patch(circle)
+    axs[0].set_title('Test Sample')
+    axs[0].set_ylabel(r'$y$')
+    # axs[0].set_xlabel(r'$x$')
+    axs[0].set_aspect('auto')
+
+    # Plot reconstruction
+    reconst_plot = axs[1].pcolormesh(grid_x, grid_y, reconst[0], cmap='RdBu', shading='auto', vmax=2, vmin=-2)
+    circle = plt.Circle((0, 0), 0.5, color='grey')
+    axs[1].add_patch(circle)
+    axs[1].set_title('Reconstruction')
+    axs[1].set_ylabel(r'$y$')
+    # axs[1].set_xlabel(r'$x$')
+    axs[1].set_aspect('auto')
+
+    # Calculate error
+    error = reconst[0]-sample[0][0]
+    MAE = torch.mean(torch.abs(error)).item()
+
+    # Plot error
+    #error_plot = axs[2].pcolormesh(grid_x, grid_y, error, vmin = 1e-3,cmap='plasma', shading='auto', norm = 'log')
+    error_plot = axs[2].pcolormesh(grid_x, grid_y, error, vmax=2, vmin=-2, cmap='RdBu', shading='auto')
+    circle = plt.Circle((0, 0), 0.5, color='grey')
+    axs[2].add_patch(circle)
+    axs[2].set_title('Error, MAE = {:.2}'.format(MAE))
+    axs[2].set_ylabel(r'$y$')
+    axs[2].set_xlabel(r'$x$')
+    axs[2].set_aspect('auto')
+
+    # Add colorbar
+    fig.colorbar(sample_plot, ax=axs[0], pad = 0.01, label = r'$\omega$')
+    fig.colorbar(reconst_plot, ax=axs[1], pad = 0.01, label = r'$\omega$')
+    fig.colorbar(error_plot, ax=axs[2], pad = 0.01, label = r'$\omega$')
+
+    plt.tight_layout()
+    plt.savefig(out_fname)
+    plt.close(fig)
