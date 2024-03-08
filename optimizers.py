@@ -11,62 +11,14 @@ def Armijo(x_k, func_f, grad_f, t = 0.8, c = 0.01, beta = 0.5):
         t = beta* t
     return t / beta
 
-def Armijo2(model, loss_fn, images, initial_lr, beta=0.5, c=1e-4):
-    """
-    Perform the Armijo line search to find the suitable step size.
+def Armijo2(grad_f, error, reconst, images, t = 0.8, c = 0.01, beta = 0.5):
+    current_loss = error(reconst, images.flatten(start_dim = 1))
+    new_loss = error(reconst + t*grad_f, images.flatten(start_dim = 1))
+    while (new_loss - current_loss > c*t*(norm(grad_f)**2)):
+        t = beta * t
+        new_loss = error(reconst + t*grad_f, images.flatten(start_dim = 1))
 
-    Parameters:
-    - model: The PyTorch model being trained.
-    - loss_fn: The loss function used for training.
-    - images: The input data for the current batch.
-    - initial_lr: The initial learning rate (step size).
-    - beta: The factor to reduce the step size in each iteration.
-    - c: The constant used in the Armijo condition.
-
-    Returns:
-    - alpha: The step size that satisfies the Armijo condition.
-    """
-    with torch.no_grad():
-        # Save current model parameters
-        orig_params = [param.clone() for param in model.parameters()]
-
-        # Compute the loss and gradient at the current parameters
-        model.zero_grad()
-        reconst, _ = model(images)
-        loss = loss_fn(reconst, images.flatten(start_dim=1))
-        loss.backward()
-        
-        # Compute the gradient norm and the initial function value
-        grad_norm = sum(p.grad.norm()**2 for p in model.parameters() if p.grad is not None).sqrt().item()
-        f_x = loss.item()
-
-        # Initialize step size
-        alpha = initial_lr
-        while True:
-            # Update model parameters temporarily
-            for param, orig_param in zip(model.parameters(), orig_params):
-                param.data = orig_param - alpha * param.grad.data
-            
-            # Compute the loss at the new parameters
-            with torch.no_grad():
-                reconst, _ = model(images)
-                f_x_alpha = loss_fn(reconst, images.flatten(start_dim=1)).item()
-            
-            # Check the Armijo condition
-            if f_x_alpha <= f_x - c * alpha * grad_norm**2:
-                break  # The condition is satisfied
-            
-            # Reduce the step size
-            alpha *= beta
-            # Restore original parameters before the next iteration
-            for param, orig_param in zip(model.parameters(), orig_params):
-                param.data = orig_param.data
-        
-        # Restore original parameters before returning
-        for param, orig_param in zip(model.parameters(), orig_params):
-            param.data = orig_param.data
-
-    return alpha
+    return t/beta
 
 
 class ProxGD(Optimizer):
