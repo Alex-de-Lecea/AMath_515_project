@@ -6,6 +6,7 @@ import torchvision
 import numpy as np 
 import matplotlib.pyplot as plt
 from collections import OrderedDict
+from optimizers import Armijo
 
 ### Helper modules ###
 
@@ -139,7 +140,7 @@ def validate_cyl(net, test_loader):
             test_loss += torch.mean(torch.abs((reconst-images))).item()
     return test_loss/len(test_loader)
 
-def train_cyl(net, opt, train_loader, test_loader, epochs = 100, error = nn.L1Loss(), iters_cycle = 100):
+def train_cyl(net, opt, train_loader, test_loader, epochs = 100, error = nn.L1Loss(), iters_cycle = 100, scheduler = None, armijo = False, use_loss = False):
     # use GPU if available
     device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
@@ -177,6 +178,18 @@ def train_cyl(net, opt, train_loader, test_loader, epochs = 100, error = nn.L1Lo
             if iters%iters_cycle==0:    
                 print('Epoch: {}/{}     Iter: {}     Loss: {}'.format(epoch, epochs, iters, loss.item()))
             iters +=1
+        if not scheduler == None:
+            if use_loss:
+                scheduler.step(loss)
+            elif (not use_loss and not armijo):
+                scheduler.step()
+        if(armijo):
+            for group in opt.param_groups:
+                for p in group['params']:
+                    grad = p.grad.data
+                    x_k = p.data
+                    #group['lr'] = Armijo(x_k, func_f, grad)
+
 
     # outputs    
     out = {}
