@@ -344,9 +344,9 @@ def plot_mnist_reconst(out_fname, net, dataloader_test):
     axs[2].set_aspect('auto')
 
     # Add colorbar
-    fig.colorbar(sample_plot, ax=axs[0], pad = 0.01, label = r'$\omega$')
-    fig.colorbar(reconst_plot, ax=axs[1], pad = 0.01, label = r'$\omega$')
-    fig.colorbar(error_plot, ax=axs[2], pad = 0.01, label = r'$\omega$')
+    fig.colorbar(sample_plot, ax=axs[0], pad = 0.01)
+    fig.colorbar(reconst_plot, ax=axs[1], pad = 0.01)
+    fig.colorbar(error_plot, ax=axs[2], pad = 0.01)
 
     plt.tight_layout()
     plt.savefig(out_fname)
