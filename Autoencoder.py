@@ -178,14 +178,7 @@ def train_cyl(net, opt, train_loader, test_loader, epochs = 100, error = nn.L1Lo
                 print('Epoch: {}/{}     Iter: {}     Loss: {}'.format(epoch, epochs, iters, loss.item()))
             iters +=1
 
-    #evaluate on test set with MAE
-    test_loss = 0
-    with torch.no_grad():
-        for batch in test_loader:
-            images = batch[0].to(device)
-            reconst, latent = net(images)
-            test_loss += error(reconst, images.flatten(start_dim=1)).item()
-            
+    # outputs    
     out = {}
     out['optimizer'] = type (opt).__name__
     out['losses'] = losses
@@ -235,6 +228,105 @@ def plot_cyl_reconst(out_fname, net, dataloader_test, Nx, Ny, grid_x, grid_y):
     axs[2].set_title('Error, MAE = {:.2}'.format(MAE))
     axs[2].set_ylabel(r'$y$')
     axs[2].set_xlabel(r'$x$')
+    axs[2].set_aspect('auto')
+
+    # Add colorbar
+    fig.colorbar(sample_plot, ax=axs[0], pad = 0.01, label = r'$\omega$')
+    fig.colorbar(reconst_plot, ax=axs[1], pad = 0.01, label = r'$\omega$')
+    fig.colorbar(error_plot, ax=axs[2], pad = 0.01, label = r'$\omega$')
+
+    plt.tight_layout()
+    plt.savefig(out_fname)
+    plt.close(fig)
+
+def validate_mnist(net, test_loader):
+    # use GPU if available
+    device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
+
+    #evaluate on test set with average absolute error across all test set
+    test_loss = 0
+    with torch.no_grad():
+        for batch in test_loader:
+            images = batch[0].to(device)
+            reconst, _ = net(images)
+            test_loss += torch.mean((reconst - images)**2).item()
+    return test_loss/len(test_loader)
+
+def train_mnist(net, opt, train_loader, test_loader, epochs = 100, error = nn.MSELoss(), iters_cycle = 1000):
+    # use GPU if available
+    device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
+
+    # Reproducibility  
+    torch.manual_seed(0);
+
+    #save losses
+    losses = []
+
+    #train
+    iters = 0
+    for epoch in range(epochs):
+        #iterate through dataloader
+        for batch in train_loader:
+            #separate batch into labels and images
+            images = batch[0].to(device)
+            
+            #make predictions
+            reconst, latent = net(images)
+            
+            #calculate loss
+            loss = error(reconst, images)
+            
+            #backpropagate gradients with Adam algorithm, this is the magic of pytorch and autograd
+            loss.backward()
+            opt.step()
+            
+            #reset gradients
+            net.zero_grad()
+            
+            #save losses
+            losses.append(loss.item())
+            
+            #log progress
+            if iters%iters_cycle==0:    
+                print('Epoch: {}/{}     Iter: {}     Loss: {}'.format(epoch, epochs, iters, loss.item()))
+            iters +=1
+    
+    #outputs
+    out = {}
+    out['optimizer'] = type (opt).__name__
+    out['losses'] = losses
+    out['net'] = net
+    out['test_error'] = validate_mnist(net, test_loader)
+
+    return out
+
+def plot_mnist_reconst(out_fname, net, dataloader_test):
+    ### Plot Results ###
+    device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
+
+    ## plot reconstruction
+    sample = next(iter(dataloader_test))  #grab the next batch from the dataloader
+    reconst, _ = net(sample[0].to(device))
+
+    fig, axs = plt.subplots(3,1, figsize=(4,10))
+
+    # Plot sample
+    sample_plot = axs[0].imshow(sample[0][0,0], cmap='gray')
+    axs[0].set_title('Test Sample')
+    axs[0].set_aspect('auto')
+
+    # Plot reconstruction
+    reconst_plot = axs[1].imshow(reconst[0,0].detach().cpu(), cmap='gray')
+    axs[1].set_title('Reconstruction')
+    axs[1].set_aspect('auto')
+
+    # Calculate error
+    error = (reconst[0,0].detach().cpu()-sample[0][0,0])**2
+    MSE = torch.mean(error**2).item()
+
+    # Plot error
+    error_plot = axs[2].imshow(error, cmap='gray')
+    axs[2].set_title('Squared Error, MSE = {:.2}'.format(MSE))
     axs[2].set_aspect('auto')
 
     # Add colorbar
