@@ -166,6 +166,13 @@ def train_cyl(net, opt, train_loader, test_loader, epochs = 100, error = nn.L1Lo
             
             #backpropagate gradients with Adam algorithm, this is the magic of pytorch and autograd
             loss.backward()
+
+            #if(armijo):
+            #    for group in opt.param_groups:
+            #        for p in group['params']:
+            #            grad = p.grad.data
+            #            x_k = p.data
+                        #group['lr'] = Armijo(x_k, func_f, grad)
             opt.step()
             
             #reset gradients
@@ -181,14 +188,8 @@ def train_cyl(net, opt, train_loader, test_loader, epochs = 100, error = nn.L1Lo
         if not scheduler == None:
             if use_loss:
                 scheduler.step(loss)
-            elif (not use_loss and not armijo):
+            elif (not use_loss):
                 scheduler.step()
-        if(armijo):
-            for group in opt.param_groups:
-                for p in group['params']:
-                    grad = p.grad.data
-                    x_k = p.data
-                    #group['lr'] = Armijo(x_k, func_f, grad)
 
 
     # outputs    
