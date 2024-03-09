@@ -20,3 +20,6 @@ vort_structured10.npy
 vort_structured20.npy
 vort_structured30.npy
 vort_structured50.npy
+data/cylinder/data_numpy.npy
+data/cylinder/xy_coords.npy
+data/cylinder/vort_structured4.npy
