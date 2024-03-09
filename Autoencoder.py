@@ -6,7 +6,7 @@ import torchvision
 import numpy as np 
 import matplotlib.pyplot as plt
 from collections import OrderedDict
-from optimizers import Armijo
+from optimizers import Armijo, Armijo2
 
 ### Helper modules ###
 
@@ -166,13 +166,6 @@ def train_cyl(net, opt, train_loader, test_loader, epochs = 100, error = nn.L1Lo
             
             #backpropagate gradients with Adam algorithm, this is the magic of pytorch and autograd
             loss.backward()
-
-            #if(armijo):
-            #    for group in opt.param_groups:
-            #        for p in group['params']:
-            #            grad = p.grad.data
-            #            x_k = p.data
-                        #group['lr'] = Armijo(x_k, func_f, grad)
             opt.step()
             
             #reset gradients
@@ -190,6 +183,11 @@ def train_cyl(net, opt, train_loader, test_loader, epochs = 100, error = nn.L1Lo
                 scheduler.step(loss)
             elif (not use_loss):
                 scheduler.step()
+        if(armijo):
+            for group in opt.param_groups:
+                for p in group['params']:
+                    grad = p.grad.data
+                    group['lr'] = Armijo2(net, grad, error, reconst, images)
 
 
     # outputs    
