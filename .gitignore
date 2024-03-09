@@ -20,3 +20,4 @@ vort_structured10.npy
 vort_structured20.npy
 vort_structured30.npy
 vort_structured50.npy
+data/*
